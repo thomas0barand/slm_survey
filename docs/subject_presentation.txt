@@ -1,0 +1,286 @@
+SLM et Edge AI
+Avancées Algorithmiques dans les Small Language Models et le déploiement Edge AI
+MOS 4.4 : Veille Technologique
+
+
+
+Présenté par : Thomas Barand                                                                                                                                                                  Tuteur:  Julien Velcin
+1
+
+Edge AI
+Déploiement d'algorithmes de Deep Learning directement sur des dispositifs locaux (NPU, GPU mobile, DSP).
+SLM
+Small Language Models : Modèles optimisés (0.5B à 7B paramètres) conservant des capacités de raisonnement avancées.
+Inférence Locale
+Exécution des modèles sans dépendance aux API Cloud, garantissant la souveraineté des données.
+Définitions
+2
+
+Motivations - Intérêt
+Intérêt fort pour les LLM et leur optimisation
+→ applications concrètes, aspects mathématiques
+
+
+Projet IA utilisant des SLM
+→ RAG, Agent
+
+
+Sujet au cœur de l’actualité technologique
+→ innovation, forte demande, évolution rapide du domaine
+3
+
+Protection de la vie privée, 
+Latence ultra-faible et la 
+Réduction des coûts opérationnels cloud.
+Disponibilité immédiate
+Contexte
+Développement des différents SLM à travers le temps
+Pourquoi les SLM et le Edge AI ?
+Source : Pieces for developer - “Why companies are turning to small language models? (SLMs)”
+4
+
+Contexte
+Les performances des modèles suivent une loi de puissance par rapport au nombre de paramètres. 
+Training Compute-Optimal Large Language Models - Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch - DeepMind 2023
+Scaling Laws for Neural Language Models  - Jared Kaplan, Sam McCandlish
+5
+
+Composants Critiques
+Attention Mechanism : Optimisation via Multi-Query Attention (MQA) ou Grouped-Query Attention (GQA).
+Tokenization : Vocabulaires denses (ex: Tiktoken) pour minimiser la longueur des séquences.
+KV Cache : Gestion de la mémoire pour l'auto-régression.
+Bases Techniques : Architecture
+The decoder-only Transformer for LLMs
+KV Cache Survey: Li et al., 2024 - Comprehensive survey
+6
+
+Différents supports de calculs
+Bases Techniques : Hardware
+CPU : contrôle général, logique séquentielle, faible parallélisme, latence faible, polyvalent
+GPU : calcul parallèle, matrices / tenseurs, entraînement & inférence IA, haut débit (throughput), grande bande passante mémoire.
+NPU : accélérateur IA dédié, faible consommation, Edge AI, réseaux neuronaux, latence optimisée, opérations tenseur.
+Diagrammes conceptuel des CPU, GPU et NPU
+What is "NPU"? - NexMAG - 2024
+7
+
+Contraintes
+Apple A19 Pro Neural Engine: ~35 TOPS
+Qualcomm Snapdragon 8 Elite Gen 5: ~60 TOPS
+MediaTek Dimensity 9400+: ~50 TOPS
+V100 : ~ 125 TOPS (GPU 2017)
+Wikipedia - Moore’s Law
+Nombre de transistor pour les microprocesseurs par rapport au temps en échelle semi-log, doublant presque chaque année
+Puissance de calcul embarquée
+8
+
+Le "Memory Wall"
+La performance est limitée par la bande passante de la mémoire (DRAM) plutôt que par le calcul brut (TFLOPS).
+VRAM : Les modèles de 7B en FP16 requièrent ~14GB, dépassant la plupart des smartphones.
+Thermique : La dissipation limite l'usage intensif prolongé.
+Contraintes
+AI and Memory Wall - Amir Gholami and al. - 2024
+The widening gap between processor and memory performance over time.
+9
+
+Stratégies d'Optimisation
+Adapter le modèle aux limites physiques
+Data-level optimization
+Survey on Efficient Inference for Large Language Models - Zhou and al. - 2024
+Model-level optimization
+System-level optimization
+10
+
+Jusqu’où peut on aller ?
+Source : Pieces for developer - “Why companies are turning to small language models? (SLMs)”
+Évolution des SLM et de leur poids à travers le temps
+Taille : 7B → <1B paramètres
+Architecture > paramètres
+Deep & thin : + couches, hidden layers réduites
+Usages : résumé, Q&A simple, texte, code basique
+11
+
+Filtrage
+Supprime les données inutiles ou bruyantes.
+
+
+Extraction de features
+Extrait les caractéristiques importantes des données brutes.
+Aggregation
+Combine les données de plusieurs sources pour simplifier.
+Optimisation DATA-level : Pruning et Design
+Quantization
+Réduit la précision des données pour économiser mémoire.
+Framework
+Traite les données localement via des plateformes dédiées.
+Empowering Edge Intelligence: A Comprehensive Survey on On-Device AI Models - Wang and al.
+12
+
+Empowering Edge Intelligence: A Comprehensive Survey on On-Device AI Models - Wang and al.
+An overview of model optimization operations.
+Optimisation MODEL-level
+13
+
+Structured Pruning
+Suppression de groupes entiers de paramètres (canaux, têtes d'attention) pour accélérer le calcul matériel.
+Unstructured Pruning
+Mise à zéro de poids individuels. Nécessite des kernels spécifiques pour exploiter la "sparsity".
+Co-design
+Compromis entre latence et précision du modèle pour déterminer les hyperparamètres.
+Optimisation MODEL-level : Pruning
+Empowering Edge Intelligence: A Comprehensive Survey on On-Device AI Models - Wang and al.
+14
+
+Réduction de la Précision
+Conversion des poids FP32/FP16 vers des formats INT8, INT4 ou même NF4 (NormalFloat).
+Optimisation : Quantisation
+Visualisation de la quantisation de fp32 vers int4
+UN GUIDE VISUEL SUR LA QUANTIFICATION - Loïck BOURDOIS
+15
+
+Transfert de Compétences
+Un modèle "Professeur" (ex: Llama-3-70B) guide l'entraînement d'un modèle "Étudiant" (ex: Llama-3-8B).
+•
+Utilisation des probabilités de sortie (soft targets).
+•
+Permet d'atteindre des performances supérieures à un entraînement "from scratch" de même taille.
+Knowledge Distillation
+16
+
+QKV Techniques
+MHA (Multi-Head Attention)
+Baseline / Qualité maximale / Inférence lente / KV Cache lourd
+GQA (Grouped Query Attention)
+Compromis / Groupes de têtes / Uptraining / Mean-pooling / Équilibre performance-vitesse
+MQA (Multi-Query Attention)
+Radical / Dégradations / Instabilité entraînement / Vitesse maximale / Partage KV unique
+A simplified illustration of different QKV grouping techniques.
+Making sense of KV Cache optimizations, Ep. 3: Model-level - Zara Zan
+17
+
+Empowering Edge Intelligence: A Comprehensive Survey on On-Device AI Models - Wang and al.
+An overview of system optimization operations.
+Optimisation SYSTEM-level
+18
+
+État de l’art : Modèles de références
+Llama 4 Scout
+Meta
+8 B
+Architecture MoE (Mélange d'Experts) et multimodalité native.
+Gemma 3
+Google
+1B - 12 B
+Performant en multimodalité (audio, vidéo). 
+Qwen3
+Alibaba
+0.5B - 7 B
+Chaîne de pensée (Reasoning) pour les maths et le code.
+Phi-4-mini
+Microsoft
+3.8 B
+Raisonnement logique supérieur, optimisé pour Windows et l’environnement Microsoft..
+Nemo, Ministral
+Mistral
+7B - 12 B
+Modèles SLM performants, versions récentes avec efficacité et scalabilité
+Les 15 meilleurs modèles linguistiques de petite taille pour 2026 - datacamp
+Exploring the Power of Small Language Models - Sunil Rao
+
+Les SLMs de références en 2026 
+19
+
+Accélération NPU
+Intégration native dans les processeurs (Snapdragon 8 Gen 3, Apple M4) pour une inférence 4bit hardware.
+Multi-Modalité Edge
+Modèles Vision-Langage (VLM) compacts pour l'analyse d'image en temps réel sans cloud.
+On-device LoRA
+Capacité de "fine-tuning" local pour personnaliser le modèle à l'utilisateur sans fuite de données.
+Perspectives : L'ère des NPUs
+20
+
+Outil de veille technologique
+Sources et récupération de données
+
+
+
+Récupération et agrégation automatisée des données (scientifiques et industrielles).
+
+Traitement (RAG/SLM)
+
+
+
+Transformation de la donnée en connaissance via pipeline IA local (Nettoyage, Indexation, Inférence).
+
+Interface
+
+
+
+Restitution interactive et génération de rapports synthétiques.
+
+
+21
+
+Outil de veille technologique
+Sources et récupération de données
+
+
+Sourcing Scientifique : Automatisation via flux RSS (Nature, IEEE) et API spécialisées (arXiv cs.AI, Semantic Scholar).
+
+ 			Signaux Faibles : Social Listening sur LinkedIn et X pour détecter les tendances produits.
+
+Curation Structurée : Utilisation de Zotero pour récupérer les métadonnées, taguer et organiser les PDF.
+
+
+
+22
+
+Outil de veille technologique
+Traitement (RAG/SLM)
+
+Pipeline (n8n) : Automatisation du flux de la collecte à l’agent IA via MCP.
+
+Pré-traitement : Conversion des documents en Markdown structuré via LlamaParse et embedding avec BERT-like.
+
+Réflexion : RAG et Raisonnement : Inférence de SLM en local (Qwen 3, Ministral)
+
+
+23
+
+Outil de veille technologique
+Interface
+
+Site web et graphe : Automatisation du flux de la collecte à l’agent IA via MCP.
+
+
+
+Organisation : Suis les grandes branches du dévelloppement : (Data/Model/System)
+
+
+
+
+24
+
+Des questions ?
+Veille Technologique : SLM et Edge AI
+25
+
+Sources
+
+Why companies are turning to Small Language Models (SLMs) Pieces for Developers → Graphiques sur l’évolution des SLM et comparaison LLM / SLM
+Scaling Laws for Neural Language Models Jared Kaplan et al., OpenAI → Loi de puissance : performance vs nombre de paramètres
+Training Compute-Optimal Large Language Models Jordan Hoffmann et al., DeepMind (2023) → Graphiques de compute optimal et scaling
+The Decoder-Only Transformer Architecture Vaswani et al. / littérature Transformer → Schéma de l’architecture Transformer (decoder-only)
+KV Cache Survey Li et al., 2024 → Illustrations du fonctionnement du KV Cache
+CPU vs GPU vs NPU – Conceptual Diagrams NexMAG – What is an NPU? (2024) → Diagrammes comparatifs CPU / GPU / NPU
+
+Moore’s Law – Transistor Count Over Time Wikipedia → Graphique semi-log du nombre de transistors
+The Memory Wall Amir Gholami et al., 2024 → Illustration du gap compute / mémoire
+Efficient Inference for Large Language Models Zhou et al., 2024 → Schémas des stratégies d’optimisation (Data / Model / System)
+Empowering Edge Intelligence: A Comprehensive Survey on On-Device AI Models Wang et al.
+Vue d’ensemble des optimisations modèle
+Pruning structuré / non structuré
+System-level optimization
+Visual Guide to Quantization (FP32 → INT4) Loïck Bourdois → Schéma visuel de la quantification
+QKV Grouping Techniques (MHA / GQA / MQA) Zara Zan – Making Sense of KV Cache Optimizations, Ep.3 → Illustration des techniques QKV
+Comparatifs SLM – État de l’art (2026) DataCamp – Best Small Language Models Sunil Rao – Exploring the Power of Small Language Models → Tableaux comparatifs des modèles
+26
