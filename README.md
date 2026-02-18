@@ -98,3 +98,39 @@ streamlit run src/app.py
 ---
 
 *Spec details: `docs/project_overview.md`*
+
+# Structure
+
+slm_survey/
+├── README.md                 ← documentation principale
+├── requirements.txt          ← dépendances Python
+│
+├── dashboard/                ← tout le front-end
+│   ├── index.html
+│   ├── style.css
+│   ├── app.js
+│   └── data/                 ← fichiers générés (gitignore possible)
+│       ├── articles.json
+│       └── taxonomy.json
+│
+├── data/                     ← données brutes pipeline
+│   ├── raw_articles.json
+│   └── enriched_articles.json
+│
+├── src/                      ← tout le code Python
+│   ├── scraper.py
+│   ├── export.py
+│   ├── merge_raw_articles.py
+│   ├── analyzer_colab.ipynb
+│   ├── analyzer_local.ipynb
+│   └── explore.ipynb
+│
+├── docs/                     ← documentation & ressources
+│   ├── project_overview.md
+│   ├── 2503.06027v2.pdf
+│   ├── samples.txt
+│   └── subject_presentation.txt
+│
+└── out/                      ← outputs générés
+    └── figures/
+        └── articles_growth_chart.png

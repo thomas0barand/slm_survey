@@ -798,7 +798,7 @@ def main():
     print(f"  -> {len(arxiv_articles)} articles from arXiv")
     persist_articles_to_raw(arxiv_articles)
 
-    print(f"\n=== Google Scholar (last {DAYS_LOOKBACK} days) ===")
+    print(f"\n=== Semanatic Scholar (last {DAYS_LOOKBACK} days) ===")
     print(f"  {len(SCHOLAR_QUERIES)} queries, max {MAX_SCHOLAR_PER_QUERY} each")
     scholar_articles = fetch_scholar(seen_titles)
     print(f"  -> {len(scholar_articles)} articles from Semantic Scholar")

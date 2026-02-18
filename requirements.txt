@@ -7,3 +7,7 @@ matplotlib
 sentence-transformers
 ollama
 scikit-learn
+streamlit
+pandas
+plotly
+streamlit-agraph
