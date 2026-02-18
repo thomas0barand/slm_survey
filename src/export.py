@@ -1,10 +1,12 @@
 """
-export.py — génère data.js pour le dashboard
-─────────────────────────────────────────────
-Input:  data/enriched_articles.json
-Output: dashboard/data.js  (contient les données embarquées)
+src/export.py
+─────────────
+Génère data.js à la racine du projet dashboard.
 
-Usage:
+Input:  data/enriched_articles.json
+Output: data.js  (à la racine du repo, au même niveau que index.html)
+
+Usage (depuis la racine du projet):
     python src/export.py
 """
 
@@ -12,16 +14,16 @@ import json
 from pathlib import Path
 from collections import defaultdict
 
-ROOT   = Path(__file__).parent.parent
+ROOT   = Path(__file__).parent.parent   # racine slm_survey/
 INPUT  = ROOT / "data" / "enriched_articles.json"
-OUTPUT = ROOT / "dashboard" / "data.js"
+OUTPUT = ROOT / "data.js"              # à la racine, même niveau qu'index.html
 
 def relevance(a: dict) -> float:
     s = a.get("category_confidence", 0) * 0.5 + a.get("subcategory_confidence", 0) * 0.5
     if a.get("needs_review"): s -= 0.05
     return round(s, 4)
 
-print(f"Reading {INPUT} …")
+print(f"Reading {INPUT.relative_to(ROOT)} …")
 with open(INPUT, encoding="utf-8") as f:
     raw = json.load(f)
 print(f"  {len(raw)} articles trouvés")
@@ -46,23 +48,18 @@ articles.sort(key=lambda x: -x["relevance"])
 taxonomy: dict = defaultdict(lambda: defaultdict(int))
 for a in articles:
     taxonomy[a["category"]][a["subcategory"]] += 1
-
 taxonomy_clean = {cat: dict(subs) for cat, subs in sorted(taxonomy.items())}
 
-articles_json  = json.dumps(articles,       ensure_ascii=False, separators=(",", ":"))
-taxonomy_json  = json.dumps(taxonomy_clean, ensure_ascii=False, indent=2)
-
-data_js = f"""/* AUTO-GENERATED — ne pas éditer manuellement
-   Relancez src/export.py pour régénérer ce fichier
-*/
-const ARTICLES_DATA = {articles_json};
-const TAXONOMY_DATA = {taxonomy_json};
-"""
+data_js = (
+    "/* AUTO-GENERATED — ne pas éditer manuellement\n"
+    "   Relancez src/export.py pour régénérer ce fichier\n"
+    "*/\n"
+    f"const ARTICLES_DATA = {json.dumps(articles, ensure_ascii=False, separators=(',',':'))};\n"
+    f"const TAXONOMY_DATA = {json.dumps(taxonomy_clean, ensure_ascii=False, indent=2)};\n"
+)
 
 with open(OUTPUT, "w", encoding="utf-8") as f:
     f.write(data_js)
 
-print(f"✓  {len(articles)} articles → {OUTPUT.relative_to(ROOT)}")
-print(f"✓  {len(taxonomy_clean)} catégories dans la taxonomie")
-print(f"   Taille : {len(data_js)//1024} KB")
-print(f"\nRafraîchissez le navigateur pour voir les changements.")
+print(f"✓  data.js généré ({len(data_js)//1024} KB)")
+print(f"   {len(articles)} articles, {len(taxonomy_clean)} catégories")
