@@ -1,80 +1,68 @@
 """
-export.py
-─────────
-Generates the two JSON files consumed by the dashboard.
+export.py — génère data.js pour le dashboard
+─────────────────────────────────────────────
+Input:  data/enriched_articles.json
+Output: dashboard/data.js  (contient les données embarquées)
 
 Usage:
     python src/export.py
-
-Input:  data/enriched_articles.json
-Output: dashboard/data/articles.json
-        dashboard/data/taxonomy.json
 """
 
 import json
 from pathlib import Path
 from collections import defaultdict
 
-# ── Paths ─────────────────────────────────────────────────
-ROOT = Path(__file__).parent.parent
+ROOT   = Path(__file__).parent.parent
 INPUT  = ROOT / "data" / "enriched_articles.json"
-OUTDIR = ROOT / "dashboard" / "data"
+OUTPUT = ROOT / "dashboard" / "data.js"
 
-OUTDIR.mkdir(parents=True, exist_ok=True)
-
-# ── Relevance score ───────────────────────────────────────
 def relevance(a: dict) -> float:
-    score = (
-        a.get("category_confidence", 0) * 0.5
-        + a.get("subcategory_confidence", 0) * 0.5
-    )
-    if a.get("needs_review"):
-        score -= 0.05
-    return round(score, 4)
+    s = a.get("category_confidence", 0) * 0.5 + a.get("subcategory_confidence", 0) * 0.5
+    if a.get("needs_review"): s -= 0.05
+    return round(s, 4)
 
-# ── Load ──────────────────────────────────────────────────
 print(f"Reading {INPUT} …")
 with open(INPUT, encoding="utf-8") as f:
     raw = json.load(f)
+print(f"  {len(raw)} articles trouvés")
 
-print(f"  {len(raw)} articles found")
-
-# ── Clean ─────────────────────────────────────────────────
 articles = []
 for a in raw:
     articles.append({
-        "title":       (a.get("title") or "")[:150],
-        "authors":     ", ".join((a.get("authors") or [])[:3]) or "Unknown",
-        "summary":     (a.get("ai_summary") or a.get("summary") or "")[:300],
-        "date":        a.get("published_date", ""),
-        "url":         a.get("url", ""),
-        "source":      a.get("source", ""),
-        "category":    a.get("category", ""),
-        "subcategory": a.get("subcategory", ""),
-        "relevance":   relevance(a),
+        "title":        (a.get("title") or "")[:150],
+        "authors":      ", ".join((a.get("authors") or [])[:3]) or "Unknown",
+        "summary":      (a.get("ai_summary") or a.get("summary") or "")[:300],
+        "date":         a.get("published_date", ""),
+        "url":          a.get("url", ""),
+        "source":       a.get("source", ""),
+        "category":     a.get("category", ""),
+        "subcategory":  a.get("subcategory", ""),
+        "relevance":    relevance(a),
         "needs_review": a.get("needs_review", True),
     })
 
-# Sort by relevance descending
 articles.sort(key=lambda x: -x["relevance"])
 
-# ── Taxonomy from actual data ─────────────────────────────
-taxonomy: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+taxonomy: dict = defaultdict(lambda: defaultdict(int))
 for a in articles:
     taxonomy[a["category"]][a["subcategory"]] += 1
 
 taxonomy_clean = {cat: dict(subs) for cat, subs in sorted(taxonomy.items())}
 
-# ── Write ─────────────────────────────────────────────────
-art_path = OUTDIR / "articles.json"
-tax_path = OUTDIR / "taxonomy.json"
+articles_json  = json.dumps(articles,       ensure_ascii=False, separators=(",", ":"))
+taxonomy_json  = json.dumps(taxonomy_clean, ensure_ascii=False, indent=2)
 
-with open(art_path, "w", encoding="utf-8") as f:
-    json.dump(articles, f, ensure_ascii=False, separators=(",", ":"))
+data_js = f"""/* AUTO-GENERATED — ne pas éditer manuellement
+   Relancez src/export.py pour régénérer ce fichier
+*/
+const ARTICLES_DATA = {articles_json};
+const TAXONOMY_DATA = {taxonomy_json};
+"""
 
-with open(tax_path, "w", encoding="utf-8") as f:
-    json.dump(taxonomy_clean, f, ensure_ascii=False, indent=2)
+with open(OUTPUT, "w", encoding="utf-8") as f:
+    f.write(data_js)
 
-print(f"\n✓  {len(articles)} articles → {art_path.relative_to(ROOT)}")
-print(f"✓  taxonomy ({len(taxonomy_clean)} categories) → {tax_path.relative_to(ROOT)}")
-print(f"\nDashboard data ready. Refresh the browser to see changes.")
+print(f"✓  {len(articles)} articles → {OUTPUT.relative_to(ROOT)}")
+print(f"✓  {len(taxonomy_clean)} catégories dans la taxonomie")
+print(f"   Taille : {len(data_js)//1024} KB")
+print(f"\nRafraîchissez le navigateur pour voir les changements.")
