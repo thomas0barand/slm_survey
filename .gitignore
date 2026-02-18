@@ -1,4 +1,6 @@
 .venv/
-data/
+data/*
 __pycache__/
 .env
+!data/raw_articles.json
+!data/enriched_articles.json

@@ -1,0 +1,33 @@
+{
+    "title": "Building Small Language Model (SLM): Knowledge Distillation (KD)",
+    "authors": [
+      "Abhishek Kumar Srivastava"
+    ],
+    "summary": "Abhishek Kumar Srivastava",
+    "published_date": "2025-11-06",
+    "url": "https://medium.com/@abhi-84/building-small-language-model-slm-knowledge-distillation-kd-10ee7a71c98c?source=search_post---------3-----------------------------------",
+    "source": "medium",
+    "citation_text": "Abhishek Kumar Srivastava (2025). Building Small Language Model (SLM): Knowledge Distillation (KD). Medium.",
+    "input_text": "Building Small Language Model (SLM): Knowledge Distillation (KD). Abhishek Kumar Srivastava",
+    "category": "Model-level",
+    "category_confidence": 0.6959,
+    "category_scores": {
+      "Data-level": 0.6406,
+      "Model-level": 0.6959,
+      "System-level": 0.5624
+    },
+    "needs_review": false,
+    "ai_summary": "Model compression via knowledge distillation achieves a BLEU score of up to 82.5% with an FLB model size reduction by over 90%.",
+    "subcategory": "Knowledge Distillation",
+    "subcategory_confidence": 0.793,
+    "subcategory_scores": {
+      "Pruning": 0.6531,
+      "Model Quantization": 0.6616,
+      "Knowledge Distillation": 0.793,
+      "Low-rank Factorization": 0.6659,
+      "Hardware-aware NAS": 0.6018,
+      "Energy-efficient Model Design": 0.6942,
+      "Parameter Sharing": 0.6626,
+      "Adaptability & Continuous Learning": 0.6811
+    }
+  },

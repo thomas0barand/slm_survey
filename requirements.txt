@@ -1,5 +1,9 @@
 arxiv
-scholarly
+semanticscholar
 playwright
 python-dotenv
 numpy
+matplotlib
+sentence-transformers
+ollama
+scikit-learn

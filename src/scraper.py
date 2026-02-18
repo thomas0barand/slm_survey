@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timedelta
 from urllib.parse import quote
 from dotenv import load_dotenv
-from scholarly import scholarly
+from semanticscholar import SemanticScholar
 from playwright.sync_api import sync_playwright
 
 load_dotenv()
@@ -14,13 +14,23 @@ load_dotenv()
 # --- Configuration ---
 
 MAX_ARXIV_PER_QUERY = 40
-MAX_SCHOLAR_PER_QUERY = 40
+MAX_SCHOLAR_PER_QUERY = 20
 MAX_LINKEDIN_PER_QUERY = 10
 MAX_MEDIUM_PER_QUERY = 10
 DAYS_LOOKBACK = 180
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "raw_articles.json")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+OUTPUT_PATH = os.path.join(DATA_DIR, "raw_articles.json")
+
+sch = SemanticScholar(api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY"))
+
+# Timestamped raw file created when saving first source in a run
+_raw_timestamp_path: str | None = None
 
 CATEGORIES = ["cs.AI", "cs.LG", "cs.CL"]
+
+# S2_API_BASE = "https://api.semanticscholar.org/graph/v1"
+# S2_FIELDS = "title,abstract,authors,year,url,venue,publicationDate,externalIds"
+# S2_RATE_DELAY = 3.5  # seconds between requests (100 req / 5 min ≈ 1 per 3s)
 
 # ---- ArXiv query groups ----
 ARXIV_QUERY_GROUPS = {
@@ -166,7 +176,14 @@ def normalize_arxiv(result: arxiv.Result) -> dict:
 
 
 def fetch_arxiv(seen_titles: set[str]) -> list[dict]:
-    client = arxiv.Client(page_size=50, delay_seconds=3.0)
+    # 1. Increase delay to 6.0s (double the 3s requirement to be safe)
+    # 2. Use num_retries=5 so the library automatically retries 429s/500s
+    client = arxiv.Client(
+        page_size=MAX_ARXIV_PER_QUERY, 
+        delay_seconds=6.0, 
+        num_retries=5
+    )
+    
     cutoff = datetime.now().astimezone() - timedelta(days=DAYS_LOOKBACK)
     articles: list[dict] = []
 
@@ -174,81 +191,149 @@ def fetch_arxiv(seen_titles: set[str]) -> list[dict]:
         query = build_arxiv_query(terms, CATEGORIES)
         for sort_by in ARXIV_SORT_STRATEGIES:
             print(f"  [arxiv/{group_name}] sort={sort_by.value}")
-            search = arxiv.Search(
-                query=query,
-                max_results=MAX_ARXIV_PER_QUERY,
-                sort_by=sort_by,
-                sort_order=arxiv.SortOrder.Descending,
-            )
-            for result in client.results(search):
-                if result.published.astimezone() < cutoff:
-                    continue
-                norm_title = _normalize_title(result.title)
-                if norm_title in seen_titles:
-                    continue
-                seen_titles.add(norm_title)
-                articles.append(normalize_arxiv(result))
+            
+            try:
+                search = arxiv.Search(
+                    query=query,
+                    max_results=MAX_ARXIV_PER_QUERY,
+                    sort_by=sort_by,
+                    sort_order=arxiv.SortOrder.Descending,
+                )
+                
+                # Execute search
+                results = client.results(search)
+                
+                for result in results:
+                    # Date check
+                    if result.published.astimezone() < cutoff:
+                        continue
+                    
+                    # Dedup check
+                    norm_title = _normalize_title(result.title)
+                    if norm_title in seen_titles:
+                        continue
+                    
+                    seen_titles.add(norm_title)
+                    articles.append(normalize_arxiv(result))
+            
+            except Exception as e:
+                # If a 429 slips through or another error occurs, log it and wait
+                print(f"    ⚠ ArXiv Error for '{group_name}': {e}")
+                print("    Waiting 20 seconds before continuing...")
+                time.sleep(20)
+
+            # Extra sleep between distinct queries to ensure we don't look like a bot swarm
+            time.sleep(2)
 
     return articles
 
-
 # --- Google Scholar ---
 
-def normalize_scholar(pub: dict) -> dict | None:
-    """Convert a scholarly publication dict to the project format."""
-    bib = pub.get("bib", {})
-    title = bib.get("title", "")
+def normalize_scholar(paper) -> dict | None:
+    """
+    Convert a Semantic Scholar library Paper object to the project format.
+    """
+    # Access attributes directly (dot notation) instead of dictionary lookup
+    title = (paper.title or "").strip()
     if not title:
         return None
 
-    authors = bib.get("author", [])
-    if isinstance(authors, str):
-        authors = [a.strip() for a in authors.split(" and ")]
+    # Handle Authors (list of Author objects)
+    raw_authors = paper.authors or []
+    authors = [a.name for a in raw_authors if a.name]
 
-    year = bib.get("pub_year", "")
-    summary = bib.get("abstract", "")
-    venue = bib.get("venue", "Google Scholar")
-    url = pub.get("pub_url") or pub.get("eprint_url") or ""
+    # Handle Dates
+    year = paper.year
+    pub_date = paper.publicationDate # This is usually a datetime object or None
+    
+    formatted_date = ""
+    if pub_date:
+        # Ensure we have a string YYYY-MM-DD
+        formatted_date = pub_date.strftime("%Y-%m-%d") if hasattr(pub_date, 'strftime') else str(pub_date)
+    elif year:
+        formatted_date = f"{year}-01-01"
+    
+    # Handle Abstract
+    abstract = (paper.abstract or "").strip()
+    
+    # Handle Venue
+    venue = paper.venue or "Semantic Scholar"
+
+    # Handle URL
+    url = paper.url or ""
+    # Fallback to external IDs if main URL is missing
+    if not url and paper.externalIds:
+        if 'DOI' in paper.externalIds:
+            url = f"https://doi.org/{paper.externalIds['DOI']}"
+        elif 'ArXiv' in paper.externalIds:
+            url = f"https://arxiv.org/abs/{paper.externalIds['ArXiv']}"
 
     return {
         "title": title,
         "authors": authors,
-        "summary": summary,
-        "published_date": f"{year}-01-01" if year else "",
+        "summary": abstract,
+        "published_date": formatted_date,
         "url": url,
-        "source": "google_scholar",
-        "citation_text": format_apa_citation(authors, year or "n.d.", title, venue or "Google Scholar"),
+        "source": "semantic_scholar",
+        "citation_text": format_apa_citation(
+            authors, year or "n.d.", title, venue
+        ),
     }
 
-
 def fetch_scholar(seen_titles: set[str]) -> list[dict]:
-    now = datetime.now()
-    year_low = (now - timedelta(days=DAYS_LOOKBACK)).year
-    year_high = now.year
+    """
+    Fetch papers using the semanticscholar library with forced slicing 
+    to prevent infinite pagination loops.
+    """
+    print(f"\n  [scholar] Queries: {len(SCHOLAR_QUERIES)}")
     articles: list[dict] = []
+    
+    # Calculate precise date range: "YYYY-MM-DD:YYYY-MM-DD"
+    now = datetime.now()
+    date_low = (now - timedelta(days=DAYS_LOOKBACK)).strftime("%Y-%m-%d")
+    date_high = now.strftime("%Y-%m-%d")
+    date_range = f"{date_low}:{date_high}"
 
     for query_str in SCHOLAR_QUERIES:
-        print(f"  [scholar] \"{query_str}\"")
+        print(f'  [scholar] "{query_str}"')
         try:
-            results = scholarly.search_pubs(query_str, year_low=year_low, year_high=year_high, sort_by="relevance")
-            count = 0
-            for pub in results:
-                if count >= MAX_SCHOLAR_PER_QUERY:
-                    break
-                art = normalize_scholar(pub)
+            # 1. Search Request
+            results = sch.search_paper(
+                query=query_str,
+                publication_date_or_year=date_range,
+                fields_of_study=["Computer Science"],
+                limit=MAX_SCHOLAR_PER_QUERY, 
+                fields=['title', 'abstract', 'authors', 'year', 'url', 'venue', 'publicationDate', 'externalIds']
+            )
+            
+            # 2. FORCE LIMIT VIA SLICING
+            # The 'results' object is a PaginatedResults generator. 
+            # Slicing it like a list (results[:N]) forces it to stop 
+            # after N items and prevents background fetching of the remaining 1400+.
+            safe_subset = results[:MAX_SCHOLAR_PER_QUERY]
+            
+            added_count = 0
+            
+            for item in safe_subset:
+                # 3. Normalize
+                art = normalize_scholar(item)
                 if art is None:
                     continue
+
+                # 4. Deduplicate
                 norm_title = _normalize_title(art["title"])
                 if norm_title in seen_titles:
-                    count += 1
                     continue
+                
                 seen_titles.add(norm_title)
                 articles.append(art)
-                count += 1
-            time.sleep(5)
+                added_count += 1
+            
+            print(f"    -> {added_count} new articles found (Total matches: {results.total})")
+
         except Exception as e:
-            print(f"    ⚠ Scholar error: {e}")
-            time.sleep(10)
+            print(f"    ⚠ Semantic Scholar error for '{query_str}': {e}")
+            time.sleep(1) 
 
     return articles
 
@@ -661,28 +746,71 @@ def save_articles(articles: list[dict], path: str) -> None:
         json.dump(articles, f, ensure_ascii=False, indent=2)
 
 
+def _get_raw_timestamp_path() -> str:
+    """Path for this run's raw articles file (created on first save)."""
+    global _raw_timestamp_path
+    if _raw_timestamp_path is None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _raw_timestamp_path = os.path.join(DATA_DIR, f"raw_articles_{ts}.json")
+    return _raw_timestamp_path
+
+
+def persist_articles_to_raw(articles: list[dict]) -> None:
+    """Append new articles to this run's raw file; skip if already present (by normalized title)."""
+    if not articles:
+        return
+    path = _get_raw_timestamp_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    existing: list[dict] = []
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            existing = []
+    seen = {_normalize_title(a["title"]) for a in existing}
+    added = 0
+    for art in articles:
+        nt = _normalize_title(art["title"])
+        if nt not in seen:
+            seen.add(nt)
+            existing.append(art)
+            added += 1
+    if added:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+        print(f"    -> {added} new articles appended to {os.path.basename(path)}")
+
+
 def main():
     seen_titles: set[str] = set()
-
-    print(f"=== ArXiv (last {DAYS_LOOKBACK} days) ===")
-    print(f"  {len(ARXIV_QUERY_GROUPS)} groups x {len(ARXIV_SORT_STRATEGIES)} sorts")
-    arxiv_articles = fetch_arxiv(seen_titles)
-    print(f"  -> {len(arxiv_articles)} articles from arXiv")
-
-    print(f"\n=== Google Scholar (last {DAYS_LOOKBACK} days) ===")
-    print(f"  {len(SCHOLAR_QUERIES)} queries, max {MAX_SCHOLAR_PER_QUERY} each")
-    scholar_articles = fetch_scholar(seen_titles)
-    print(f"  -> {len(scholar_articles)} articles from Google Scholar")
-
-    print(f"\n=== LinkedIn ===")
-    print(f"  {len(LINKEDIN_QUERIES)} queries, max {MAX_LINKEDIN_PER_QUERY} each")
-    linkedin_articles = fetch_linkedin(seen_titles)
-    print(f"  -> {len(linkedin_articles)} posts from LinkedIn")
+    
 
     print(f"\n=== Medium ===")
     print(f"  {len(MEDIUM_QUERIES)} queries, max {MAX_MEDIUM_PER_QUERY} each")
     medium_articles = fetch_medium(seen_titles)
     print(f"  -> {len(medium_articles)} articles from Medium")
+    persist_articles_to_raw(medium_articles)
+
+    print(f"=== ArXiv (last {DAYS_LOOKBACK} days) ===")
+    print(f"  {len(ARXIV_QUERY_GROUPS)} groups x {len(ARXIV_SORT_STRATEGIES)} sorts")
+    arxiv_articles = fetch_arxiv(seen_titles)
+    print(f"  -> {len(arxiv_articles)} articles from arXiv")
+    persist_articles_to_raw(arxiv_articles)
+
+    print(f"\n=== Google Scholar (last {DAYS_LOOKBACK} days) ===")
+    print(f"  {len(SCHOLAR_QUERIES)} queries, max {MAX_SCHOLAR_PER_QUERY} each")
+    scholar_articles = fetch_scholar(seen_titles)
+    print(f"  -> {len(scholar_articles)} articles from Semantic Scholar")
+    persist_articles_to_raw(scholar_articles)
+
+    print(f"\n=== LinkedIn ===")
+    print(f"  {len(LINKEDIN_QUERIES)} queries, max {MAX_LINKEDIN_PER_QUERY} each")
+    linkedin_articles = fetch_linkedin(seen_titles)
+    print(f"  -> {len(linkedin_articles)} posts from LinkedIn")
+    persist_articles_to_raw(linkedin_articles)
+
+    
 
     all_articles = arxiv_articles + scholar_articles + linkedin_articles + medium_articles
     all_articles.sort(key=lambda a: a["published_date"], reverse=True)
