@@ -1,136 +1,166 @@
-# SLM & Edge AI — Outil de Veille Technologique
+# SLM & Edge AI — Veille Technologique
 
-Automated tech watch on **Small Language Models (SLM)** and **Edge AI**: scrape papers & news, classify with a local SLM (Ollama), and explore via an interactive Streamlit dashboard.
-
----
-
-## Final objective
-
-1. **Monitor the state of the art** — Papers and news from arXiv, RSS, and other sources.
-2. **Demonstrate Edge AI** — Use a local SLM (Ollama: Phi-3/Mistral) to analyze and classify collected items.
-
-**Target architecture**
-
-- **Backend (local):** Python + Ollama for processing.
-- **Frontend:** Streamlit dashboard (taxonomy tree, filters, stats).
-- **Deployment:** Google Sites with the Streamlit app in an iframe.
+Projet de veille technologique (MOS 4.4) sur les **Small Language Models (SLM)** et le **Edge AI** : collecte d’articles et de papers, enrichissement par classification (taxonomie), et exploration via un site web statique interactif.
 
 ---
 
-## Repo structure
+## Projet et livrables
 
-```
-slm_survey/
-├── data/                 # raw_articles.json, enriched_articles.json (gitignored)
-├── docs/
-│   ├── project_overview.md
-│   └── subject_presentation.txt
-├── src/
-│   ├── scraper.py        # Collect papers & articles
-│   ├── analyzer.py       # (TODO) Local SLM classification & summarization
-│   ├── app.py            # (TODO) Streamlit dashboard
-│   ├── chat_module.py    # (TODO) RAG chat over the corpus
-│   └── debug_linkedin.py # Dev helper
-├── requirements.txt
-├── explore.ipynb
-└── README.md
-```
+| Livrable | Description |
+|----------|-------------|
+| **Code** | Scripts Python (scraper, merge, export) et notebooks d’analyse (Colab / local). |
+| **Scraper** | Collecte multi-sources (arXiv, Semantic Scholar, LinkedIn, Medium) → `raw_articles.json`. |
+| **Process** | Pipeline données brutes → enrichissement (catégories, résumés) → export pour le site. |
+| **Website** | Site statique (HTML/CSS/JS) pour explorer la taxonomie et les articles, avec pages « À propos ». |
+
+![Vue d’ensemble du site — page principale](images/websitemainpage.png)
 
 ---
 
-## Project structure (global)
+## Pipeline données et scraping
 
-| Step | Module        | Role |
-|------|---------------|------|
-| 1    | **Scraper**   | Fetch from arXiv, Scholar, RSS, etc. → filter by SLM/Edge AI keywords → save `data/raw_articles.json` (title, authors, summary, published_date, url, source, citation_text APA). |
-| 2    | **Analyzer**  | Load raw articles → Ollama (phi3) → classify into Data/Model/System (Zhou et al.) + one-sentence summary → save `data/enriched_articles.json`. |
-| 3    | **Dashboard** | Streamlit: sidebar filters (date, category), interactive tree (SLM & Edge AI → Data/Model/System → articles), pie chart, article detail (summary + link). |
-| 4    | **RAG Chat**  | LangChain + ChromaDB over enriched summaries → user questions answered by Ollama with retrieved context. |
+### Vue d’ensemble du flux
 
----
+![Organigramme du flux données et processus](images/organigramme.png)
 
-## What has been done
+### Répertoires et rôles
 
-- **Environment:** `requirements.txt`, `.gitignore` (`.venv/`, `data/`, `.env`).
-- **Scraper (`src/scraper.py`):**
-  - **Sources:** ArXiv (cs.AI, cs.LG, cs.CL), Google Scholar, LinkedIn (Playwright), Medium.
-  - **Queries:** SLM, Edge AI, quantization, pruning, on-device AI, NPU, etc.
-  - **Output:** Normalized entries with `title`, `authors`, `summary`, `published_date`, `url`, `source`, and APA `citation_text` → `data/raw_articles.json`.
-- **Docs:** `docs/project_overview.md` (full spec), `docs/subject_presentation.txt`.
+| Répertoire / fichier | Rôle |
+|----------------------|------|
+| `data/` | Données du pipeline : `raw_articles.json`, `enriched_articles.json` (générés, à ne pas versionner si sensibles). |
+| `src/` | Code Python et notebooks. |
+| Racine (index.html, app.js, style.css, data.js) | Site web statique ; `data.js` est généré par `export.py`. |
 
----
+### Scripts et fonctions principales
 
-## What remains to be done
+#### 1. Scraping — `src/scraper.py`
 
-| Step | Task | File(s) |
-|------|------|--------|
-| 1 | Add deps: `streamlit`, `streamlit-agraph` or `graphviz`, `feedparser`, `langchain`, `langchain-community`, `chromadb`. | `requirements.txt` |
-| 2 | **Analyzer:** Load `raw_articles.json`, call Ollama (phi3) for taxonomy class (Data/Model/System) + one-sentence summary, write `enriched_articles.json`. | `src/analyzer.py` |
-| 3 | **Dashboard:** Streamlit app with filters, tree (e.g. streamlit-agraph), pie chart, article detail panel. | `src/app.py` |
-| 4 | **RAG Chat:** LangChain + ChromaDB over enriched articles, Ollama for answers; “Discuter avec la Veille” tab in Streamlit. | `src/chat_module.py` |
-| 5 | Optional: RSS via feedparser (e.g. Hugging Face papers) in scraper. | `src/scraper.py` |
+- **Rôle :** Interroger arXiv, Semantic Scholar, LinkedIn (Playwright), Medium ; normaliser les entrées et écrire `data/raw_articles.json`.
+- **Config :** `.env` pour `SEMANTIC_SCHOLAR_API_KEY` si besoin. Constantes en tête de fichier : `MAX_*_PER_QUERY`, `DAYS_LOOKBACK`, `DATA_DIR`, `OUTPUT_PATH`.
+- **Sources :**
+  - **arXiv** : catégories `cs.AI`, `cs.LG`, `cs.CL` ; groupes de requêtes (SLM, Edge AI, quantization, pruning/distillation, hardware/inference) dans `ARXIV_QUERY_GROUPS`.
+  - **Semantic Scholar** : requêtes dérivées des mêmes thèmes.
+  - **LinkedIn / Medium** : via Playwright (optionnel, selon config).
+- **Sortie :** Objets avec `title`, `authors`, `summary`, `published_date`, `url`, `source`, `citation_text` (APA), etc.
 
----
-
-## How to run
-
-**Prerequisites:** Python 3.10+, Ollama with `phi3` or `mistral`. For scraper: `.env` if needed (e.g. credentials for LinkedIn/Medium).
+**Utilisation :**
 
 ```bash
-# Collect articles
+python src/scraper.py
+```
+
+Génère ou met à jour `data/raw_articles.json`.
+
+#### 2. Fusion des exports bruts — `src/merge_raw_articles.py`
+
+- **Rôle :** Fusionner plusieurs fichiers `raw_articles_*.json` dans `data/` en un seul `raw_articles.json`, avec déduplication par titre normalisé. Ignore les entrées dont la source est `google_scholar` (pour éviter doublons avec d’autres flux).
+- **Fonction principale :** `merge_json_files()` — scanne `data/`, fusionne les listes, déduplique, écrit `data/raw_articles.json`.
+
+**Utilisation :**
+
+```bash
+python src/merge_raw_articles.py
+```
+
+À lancer après des runs de scraper qui ont produit des fichiers préfixés `raw_articles_` (ex. par date ou source).
+
+#### 3. Enrichissement (hors repo strict)
+
+- **Rôle :** À partir de `raw_articles.json`, attribuer catégorie / sous-catégorie (taxonomie) et résumés (ex. via un modèle local ou Colab).
+- **Fichiers concernés :** `src/analyzer_colab.ipynb`, `src/analyzer_local.ipynb` (ou tout script qui lit `raw_articles.json` et écrit `enriched_articles.json`).
+- **Sortie attendue :** `data/enriched_articles.json` avec au moins : `title`, `authors`, `summary`, `ai_summary`, `published_date`, `url`, `source`, `category`, `subcategory`, `category_confidence`, `subcategory_confidence`, `needs_review`.
+
+#### 4. Export pour le site — `src/export.py`
+
+- **Rôle :** Lire `data/enriched_articles.json` et générer `data.js` à la racine du repo (à côté de `index.html`).
+- **Contenu de `data.js` :** Variables globales `ARTICLES_DATA` et `TAXONOMY_DATA` utilisées par `app.js` (liste d’articles avec champs simplifiés + taxonomie cat → sous-cat → effectifs).
+- **Fonctions utiles :** `relevance(a)` pour le score d’affichage ; tri par pertinence avant export.
+
+**Utilisation :**
+
+```bash
+python src/export.py
+```
+
+À lancer après toute mise à jour de `enriched_articles.json` pour mettre à jour le site.
+
+### Utilisation globale du repo (ordre typique)
+
+```bash
+# 1. Collecte
 python src/scraper.py
 
-# Classify & summarize with local SLM (when implemented)
-python src/analyzer.py
+# 2. (Optionnel) Fusion si plusieurs fichiers raw
+python src/merge_raw_articles.py
 
-# Launch dashboard (when implemented)
-streamlit run src/app.py
+# 3. Enrichissement (notebook Colab ou local)
+#    → produire data/enriched_articles.json
+
+# 4. Génération des données du site
+python src/export.py
+
+# 5. Ouvrir le site (fichiers statiques)
+# Ouvrir index.html dans un navigateur ou servir le dossier (ex. python -m http.server)
 ```
 
 ---
 
-## Tech stack (from project overview)
+## Site web
 
-- **Language:** Python 3.10+
-- **Local LLM:** Ollama (phi3 / mistral)
-- **Key libs:** streamlit, streamlit-agraph or graphviz, feedparser, arxiv, langchain, langchain-community, chromadb, scholarly, playwright, python-dotenv
+Le site est une SPA légère en HTML/CSS/JS. Il charge `data.js` (généré par `export.py`) et affiche :
+
+- **Vue d’ensemble :** cartes par catégorie (exploration des dernières nouvelles), section « À propos » (définitions SLM/Edge AI + à propos du travail), organigramme du projet.
+- **Pages catégorie / sous-catégorie :** liste d’articles avec tri (pertinence, date, titre), résumé et lien vers la source.
+- **Pages « À propos » :** contenu pédagogique (définitions, stratégies) et page projet (organigramme, contacts, dépôt).
+
+### Captures d’écran
+
+**Page principale (vue d’ensemble et exploration)**
+
+![Page principale du site](images/websitemainpage.png)
+
+**Section définitions et contenu (À propos des SLMs et du Edge AI)**
+
+![Définitions et contenu](images/website_definitions.png)
+
+**Dernières nouvelles (exploration par catégorie)**
+
+![Dernières nouvelles](images/websitelastenews.png)
 
 ---
 
-*Spec details: `docs/project_overview.md`*
+## Structure du dépôt
 
-# Structure
-
+```
 slm_survey/
-├── README.md                 ← documentation principale
-├── requirements.txt          ← dépendances Python
-│
-├── dashboard/                ← tout le front-end
-│   ├── index.html
-│   ├── style.css
-│   ├── app.js
-│   └── data/                 ← fichiers générés (gitignore possible)
-│       ├── articles.json
-│       └── taxonomy.json
-│
-├── data/                     ← données brutes pipeline
-│   ├── raw_articles.json
-│   └── enriched_articles.json
-│
-├── src/                      ← tout le code Python
-│   ├── scraper.py
-│   ├── export.py
-│   ├── merge_raw_articles.py
-│   ├── analyzer_colab.ipynb
-│   ├── analyzer_local.ipynb
-│   └── explore.ipynb
-│
-├── docs/                     ← documentation & ressources
-│   ├── project_overview.md
-│   ├── 2503.06027v2.pdf
-│   ├── samples.txt
-│   └── subject_presentation.txt
-│
-└── out/                      ← outputs générés
-    └── figures/
-        └── articles_growth_chart.png
+├── README.md
+├── index.html, app.js, style.css, data.js   # Site web (data.js généré)
+├── requirements.txt
+├── data/
+│   ├── raw_articles.json      # Sortie scraper / merge
+│   └── enriched_articles.json  # Sortie enrichissement
+├── images/                    # Visuels du site et du README
+│   ├── websitemainpage.png
+│   ├── website_definitions.png
+│   └── websitelastenews.png
+├── src/
+│   ├── scraper.py             # Collecte multi-sources
+│   ├── merge_raw_articles.py  # Fusion et déduplication raw
+│   ├── export.py               # enriched → data.js
+│   ├── analyzer_colab.ipynb    # Enrichissement (Colab)
+│   ├── analyzer_local.ipynb    # Enrichissement local
+│   └── explore.ipynb           # Exploration des données
+└── documentation/             # Docs projet (sujet, etc.)
+```
+
+---
+
+## Prérequis
+
+- Python 3.10+
+- Dépendances : `arxiv`, `semanticscholar`, `playwright`, `python-dotenv`, etc. (voir `requirements.txt`)
+- Pour le scraper : clé API Semantic Scholar optionnelle (`.env`), Playwright installé si usage LinkedIn/Medium
+
+---
+
+*Détails du sujet et de la spec : `documentation/`*
