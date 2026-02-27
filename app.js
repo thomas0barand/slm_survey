@@ -71,10 +71,12 @@ function attachListeners() {
 
 function handleAction(el) {
   const a = el.dataset.action;
-  if (a === 'overview') navOverview();
-  if (a === 'cat')      onCatClick(el.dataset.cat);
-  if (a === 'subcat')   navSubcat(el.dataset.cat, el.dataset.sub);
-  if (a === 'article')  toggleArt(el.dataset.id);
+  if (a === 'overview')   navOverview();
+  if (a === 'cat')        onCatClick(el.dataset.cat);
+  if (a === 'subcat')    navSubcat(el.dataset.cat, el.dataset.sub);
+  if (a === 'article')   toggleArt(el.dataset.id);
+  if (a === 'about-slm') navAboutSlm();
+  if (a === 'about-work') navAboutWork();
 }
 
 /* ── Header ───────────────────────────────────────────── */
@@ -135,6 +137,16 @@ function buildTree() {
     }
     html += `</div></div>`;
   }
+  html += `
+    <div class="tree-about-sep"></div>
+    <div class="tree-about-row cat-about1 ${state.view === 'about-slm' ? 'active' : ''}" data-action="about-slm">
+      <div class="cat-pip" style="background:var(--c-about1)"></div>
+      <span>A propos des SLMs et du Edge AI</span>
+    </div>
+    <div class="tree-about-row cat-about2 ${state.view === 'about-work' ? 'active' : ''}" data-action="about-work">
+      <div class="cat-pip" style="background:var(--c-about2)"></div>
+      <span>A propos de ce travail</span>
+    </div>`;
   document.getElementById('tree-root').innerHTML = html;
 }
 
@@ -153,41 +165,241 @@ function navSubcat(cat, sub) {
   state.view = 'subcategory'; state.cat = cat; state.subcat = sub; state.openArticle = null;
   buildTree(); renderSubcat(cat, sub); scrollTop();
 }
+function navAboutSlm() {
+  state.view = 'about-slm'; state.cat = null; state.subcat = null; state.openArticle = null;
+  buildTree(); renderAboutSlm(); scrollTop();
+}
+function navAboutWork() {
+  state.view = 'about-work'; state.cat = null; state.subcat = null; state.openArticle = null;
+  buildTree(); renderAboutWork(); scrollTop();
+}
 function rerender() {
   if (state.view === 'overview')         renderOverview();
   else if (state.view === 'category')    renderCategory(state.cat);
   else if (state.view === 'subcategory') renderSubcat(state.cat, state.subcat);
+  else if (state.view === 'about-slm')   renderAboutSlm();
+  else if (state.view === 'about-work')  renderAboutWork();
 }
 function scrollTop() { document.getElementById('main-panel').scrollTop = 0; }
 
 /* ── Overview ─────────────────────────────────────────── */
+const CONTENT_CARDS = [
+  { title: "Lois de puissance et scaling des LLM vers les SLM", text:'Les performances des modèles de langage suivent des lois de puissance : la loss diminue de manière prévisible quand on augmente les paramètres, les données et le compute (Kaplan et al., 2020). Chinchilla (Hoffmann et al., 2022) montre qu’à compute constant, il est optimal d’entraîner des modèles plus petits sur davantage de données (≈20 tokens par paramètre). Ainsi, un scaling bien équilibré paramètres/données permet à des SLM bien entraînés d’atteindre des performances proches des grands modèles sur des tâches ciblées.', imgCaption: 'Scaling laws : paramètres, données et compute', images: [
+    { src: 'images/loidepuissance.png', caption: 'Test loss vs Compute, Dataset, Parameters (Kaplan et al., 2020)' },
+    { src: 'images/loidepuissnacechichilla.png', caption: 'Paramètres vs FLOPS — Chinchilla, Gopher, GPT-3 (Hoffmann et al.)' },
+  ], sources: [
+    { label: 'Chinchilla (Hoffmann et al., 2022)', url: 'https://arxiv.org/abs/2203.15556' },
+    { label: 'Kaplan et al., 2020', url: 'https://arxiv.org/pdf/2001.08361' },
+  ]},
+  {
+    title: 'Architecture',
+    text: "L'architecture des SLMs ets basée sur les Transformers decoder-only optimisés autour de trois composants clés :<br>(1) Attention avec MQA ou GQA pour réduire le coût mémoire et accélérer l’inférence ;<br>(2) Tokenization via des vocabulaires denses (ex. Tiktoken) afin de raccourcir les séquences ;<br>(3) KV Cache pour stocker les clés/valeurs passées et accélérer l’auto-régression.",
+    imgCaption: 'Transformer decoder-only',
+    images: [
+      {
+        src: "images/transformer1.png",
+        caption: "Decoder-only Transformer et KV Cache (Li et al., 2024)"
+      }
+    ],
+    sources: [
+      { label: 'A Survey on Efficient Inference for Large Language Models (2024)', url: 'https://arxiv.org/abs/2404.14294' },
+    ]
+  },
+  {
+    title: 'Hardware',
+    text: "CPU : contrôle général et logique séquentielle, faible parallélisme mais faible latence et grande polyvalence ;<br>GPU : calcul massivement parallèle optimisé pour matrices et tenseurs, haut throughput et large bande passante mémoire pour l’entraînement et l’inférence IA ;<br>NPU : accélérateur IA dédié aux opérations tensorielle, faible consommation énergétique, latence optimisée pour l’Edge AI.",
+    imgCaption: 'CPU vs GPU vs NPU',
+    images: [
+      {
+        src: "images/hardware.jpeg",
+        caption: "Architecture comparative CPU, GPU et NPU"
+      }
+    ]
+  },
+  {
+    title: 'Le Memory Wall et Puissance de calcul',
+    text: "La puissance de calcul a historiquement doublé environ tous les deux ans (loi de Moore), mais ce rythme ralentit. Les puces mobiles atteignent désormais des dizaines de TOPS (Apple A19 Pro ~35 TOPS, Snapdragon 8 Elite ~60 TOPS, Dimensity 9400+ ~50 TOPS), tandis qu’un GPU V100 (2017) atteignait ~125 TOPS. Cependant, en inférence LLM, la performance est souvent limitée par la bande passante mémoire (DRAM) plutôt que par le compute brut : la latence ≈ taille du modèle / bande passante mémoire. Un modèle 7B en FP16 nécessite ~14 Go de VRAM, au-delà de la capacité de la plupart des smartphones. Enfin, les contraintes thermiques et énergétiques limitent l’usage intensif prolongé, surtout en on-device.",
+    imgCaption: 'Compute vs mémoire',
+    images: [
+      {
+        src: "images/moorelaw.png",
+        caption: "Nombre de transistor pour les microprocesseurs par rapport au temps en échelle semi-log, doublant presque chaque année (Wikipedia - Moore’s Law)"
+      },
+      {
+        src: "images/memorywall.png",
+        caption: "Memory Wall : la bande passante mémoire devient le facteur limitant (AI and Memory Wall - Amir Gholami and al. - 2024)"
+      }
+    ],
+    sources: [
+      { label: "AI and Memory Wall (Gholami et al., 2024)", url: 'https://arxiv.org/abs/2403.14123' },
+      { label: "Moore's Law (Wikipedia)", url: 'https://en.wikipedia.org/wiki/Moore%27s_law' },
+    ]
+  },
+  {
+    title: "Jusqu'où peut-on aller ?",
+    text: "Les SLM couvrent désormais une large gamme de tailles, du milliard de paramètres à moins d’un milliard (<1B). L’architecture privilégie souvent un design **deep & thin** : plus de couches mais des dimensions cachées réduites pour maximiser l’efficacité. Ces modèles sont performants pour des usages ciblés : résumé de texte, Q&A, génération de texte et code simple, tout en restant légers et rapides à déployer.",
+    images: [
+      {
+        src: "images/evolutionslm.png",
+        caption: "Évolution des principaux SLM et de leur taille dans le temps (Source : Pieces for Developer - “Why companies are turning to small language models? (SLMs)”)"
+      }
+    ],
+    sources: [
+      { label: "Why companies are turning to small language models (Pieces)", url: 'https://pieces.app/blog/why-companies-are-turning-to-small-language-models' },
+    ]
+  },
+  {
+    title: "Optimisation MODEL-level : Pruning",
+    text: "Le <b>pruning</b> permet de réduire la taille et d'accélérer les modèles tout en conservant la précision :<br><br>• <b>Structured Pruning</b> : suppression de groupes entiers de paramètres (canaux, têtes d'attention) pour améliorer le calcul matériel.<br>• <b>Unstructured Pruning</b> : mise à zéro de poids individuels, nécessitant des kernels spécifiques pour exploiter la sparsity.<br>• <b>Co-design</b> : équilibre entre latence et précision pour déterminer les hyperparamètres optimaux.",
+    imgCaption: "Techniques de pruning pour LLM et SLM",
+    images: [
+      {
+        src: "images/pruning.png",
+        caption: "Empowering Edge Intelligence: A Comprehensive Survey on On-Device AI Models - Wang and al. (2025)"
+      }
+    ],
+    sources: [
+      { label: 'Empowering Edge Intelligence (Wang et al., 2025)', url: 'https://arxiv.org/abs/2503.06027' },
+    ]
+  },
+  {
+    title: "Optimisation MODEL-level : Quantisation",
+    text: "La <b>quantisation</b> réduit la taille des modèles et accélère l’inférence en convertissant les poids FP32/FP16 vers INT8, INT4 ou NF4.<br>Une visualisation typique montre le passage de FP32 à INT4 pour les réseaux neuronaux.",
+    imgCaption: "Visualisation de la quantisation FP32 → INT4",
+    images: [
+      {
+        src: "images/quantization.png",
+        caption: "UN GUIDE VISUEL SUR LA QUANTIFICATION - Loïck BOURDOIS"
+      }
+    ],
+    sources: [
+      { label: 'Un guide visuel sur la quantification (Loïck Bourdois)', url: 'https://blog.loickbourdois.fr/quantification/' },
+    ]
+  },
+  {
+    title: "Optimisation MODEL-level : Knowledge Distillation",
+    text: "La <b>distillation de connaissances</b> permet à un modèle professeur de transférer son savoir à un modèle étudiant plus compact via ses probabilités de sortie (soft targets). Récemment remise en lumière par les succès de <b>DeepSeek-R1</b>, cette technique offre de meilleures performances qu'un entraînement de zéro. Son efficacité dépend fortement de la taille relative des modèles (cf. <i>Distillation Scaling Laws</i>) et s'avère indispensable pour le déploiement sur appareils mobiles (cf. <i>Empowering Edge Intelligence: A Comprehensive Survey on On-Device AI Models - Wang et al.</i>).",
+    imgCaption: "Mécanisme de Knowledge Distillation et d'optimisation",
+    images: [
+      {
+        "src": "images/distillation1.png",
+        "caption": "Exemple de transfert via les soft targets (Wang et al. 2025)"
+      },
+      {
+        "src": "images/distillation2.png",
+        "caption": "Impact des tailles de modèles selon Distillation Scaling Laws (Busbridge and al . 2025)"
+      }
+    ],
+    sources: [
+      { label: 'Distillation Scaling Laws (Busbridge et al., 2025)', url: 'https://arxiv.org/abs/2502.08606' },
+      { label: 'Empowering Edge Intelligence (Wang et al., 2025)', url: 'https://arxiv.org/abs/2503.06027' },
+    ]
+  },
+  {
+    title: "Optimisation MODEL-level : QKV Techniques",
+    text: "Les techniques QKV optimisent l’attention multi-têtes pour équilibrer vitesse et qualité :<br>• MHA : baseline, inférence lente, KV Cache lourd<br>• GQA : groupes de têtes, compromis performance/vitesse<br>• MQA : KV unique, vitesse maximale mais dégradations possibles",
+    imgCaption: "QKV Techniques et KV Cache optimizations",
+    images: [
+      {
+        src: "images/qkv.png",
+        caption: "A simplified illustration of different QKV grouping techniques (Zara Zan, 2024)"
+      }
+    ],
+    sources: [
+      { label: 'GQKVA: Grouping Queries, Keys, and Values (2023)', url: 'https://arxiv.org/abs/2311.03426' },
+      { label: 'AsymGQA / Grouped-query attention (2024)', url: 'https://arxiv.org/abs/2406.14963' },
+    ]
+  },
+  {
+    title: "Optimisation SYSTEM-level",
+    text: "L'optimisation au niveau système se divise en deux grands piliers : le <b>moteur d'inférence</b> (Inference Engine) qui accélère la génération via l'optimisation des graphes/opérateurs, l'offloading et le décodage spéculatif ; et le <b>système de service</b> (Serving System) qui gère l'infrastructure et le flux de requêtes via la gestion de la mémoire, le batching, l'ordonnancement (Scheduling) et l'utilisation de systèmes distribués.",
+    imgCaption: "",
+    images: [
+      {
+        "src": "images/system.png",
+        "caption": "Vue globale des stratégies d'optimisation au niveau système (Wang and al. 2025)"
+      }
+    ],
+    sources: [
+      { label: 'Empowering Edge Intelligence (Wang et al., 2025)', url: 'https://arxiv.org/abs/2503.06027' },
+    ]
+  },
+  {
+    title: "Les SLMs de référence en 2026",
+    text: "Les Small Language Models (SLM) allient efficacité et spécialisation selon <i>Datacamp</i> et <i>Sunil Rao</i> :<br><br>• Llama 4 Scout (Meta, 8B) : Architecture MoE et multimodalité native.<br>• Gemma 3 (Google, 1B-12B) : Performant en multimodalité (audio, vidéo).<br>• Qwen3 (Alibaba, 0.5B-7B) : Chaîne de pensée (Reasoning) pour les maths et le code.<br>• Phi-4-mini (Microsoft, 3.8B) : Raisonnement logique supérieur, optimisé Windows.<br>• Nemo & Ministral (Mistral, 7B-12B) : Modèles performants, alliant efficacité et scalabilité.",
+    imgCaption: "Évolution et spécialisation des SLM en 2026",
+    images: [
+      {
+        "src": "images/slmmodels.png",
+        "caption": "Les modèles de références selon Datacamp & Sunil Rao (2026)"
+      }
+    ],
+    sources: [
+      { label: 'Small Language Models (Datacamp)', url: 'https://www.datacamp.com/blog/small-language-models' },
+    ]
+  },
+  {
+    title: "Perspectives : L'ère des NPUs",
+    text: "L'évolution du matériel permet d'exécuter des modèles avancés directement sur les appareils :<br><br>• Accélération NPU : Intégration native (Snapdragon 8 Gen 3, Apple M4) pour une inférence 4-bit matérielle.<br>• Multi-Modalité Edge : Modèles Vision-Langage (VLM) compacts pour l'analyse d'image en temps réel sans cloud.<br>• On-device LoRA : Fine-tuning local pour personnaliser le modèle à l'utilisateur sans fuite de données.",
+    sources: [
+      { label: 'Empowering Edge Intelligence (Wang et al., 2025)', url: 'https://arxiv.org/abs/2503.06027' },
+    ]
+  },
+];
+
 function renderOverview() {
-  const IMAGES = [
-    { src: './images/slm-timeline.png',  caption: 'Évolution des SLM à travers le temps' },
-    { src: './images/transformer.png',   caption: 'Architecture Transformer decoder-only' },
-    { src: './images/hardware.jpeg',     caption: 'CPU vs GPU vs NPU — accélérateurs IA' },
-  ];
-
-  const imgSlots = IMAGES.map(img => `
-    <div class="img-slot">
-      <img src="${img.src}" alt="${h(img.caption)}"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <div class="img-placeholder" style="display:none">
-        <div class="ph-icon">🖼</div>
-        <div style="font-size:.65rem;opacity:.5">${h(img.caption)}</div>
-      </div>
-      <div class="img-caption">${h(img.caption)}</div>
-    </div>
-  `).join('');
-
   let html = `
     <div class="overview-eyebrow">MOS 4.4 — Veille Technologique</div>
     <div class="overview-title"><em>Small Language Models</em><br>&amp; Edge AI</div>
     <div class="overview-lead">
-      Avancées algorithmiques dans les modèles de langage compacts et leur déploiement
-      sur dispositifs locaux — de la quantisation aux architectures NPU-native.
+      Avancées algorithmiques dans les modèles de langage compacts et leur déploiement sur dispositifs locaux — de la quantisation aux architectures NPU-native.
     </div>
 
+    <div class="section-label">Explorer les dernières nouvelles :</div>
+    <div class="cat-cards">
+  `;
+  for (const [cat, subs] of Object.entries(TAXONOMY)) {
+    const m     = catStyle(cat);
+    const total = Object.values(subs).reduce((a, b) => a + b, 0);
+    html += `
+      <div class="cat-card ${m.cls}" data-action="cat" data-cat="${h(cat)}">
+        <div class="card-number">${total}</div>
+        <div class="card-title">${h(cat)}</div>
+        <div class="card-subs">
+    `;
+    for (const [sub, cnt] of Object.entries(subs)) {
+      html += `<div class="card-sub-row"><span>${h(sub)}</span><span>${cnt}</span></div>`;
+    }
+    html += `</div><div class="card-cta">→ Explorer</div></div>`;
+  }
+  html += `</div>
+
+    <div class="section-label section-label--spaced">À Propos</div>
+    <div class="cat-cards cat-cards--about">
+      <div class="cat-card cat-about1" data-action="about-slm">
+        <div class="card-title">A propos des SLMs et du Edge AI</div>
+        <p class="card-desc">Définitions (SLM, Edge AI, enjeux),lois de scaling, architecture, hardware, stratégies d'optimisations (pruning, quantisation, distillation, QKV).</p>
+        <div class="card-cta">→ Voir les définitions, le contenu & les stratégies</div>
+      </div>
+      <div class="cat-card cat-about2" data-action="about-work">
+        <div class="card-title">A propos de ce travail</div>
+        <p class="card-desc">Présentation du projet de veille (MOS 4.4), organigramme de la démarche, méthodologie de collecte et d’analyse des articles, ainsi que les coordonnées et le dépôt du projet.</p>
+        <div class="card-cta">→ Voir le projet, l’organigramme & les contacts</div>
+      </div>
+    </div>
+
+    <div class="section-label section-label--spaced">Organigramme du projet</div>
+    <div class="about-organigram-wrap">
+      <img src="images/organigramme.png" alt="Organigramme du travail" class="about-organigram-img" loading="lazy">
+    </div>
+  `;
+  document.getElementById('content-area').innerHTML = html;
+}
+
+/* ── About SLM page: definitions + content cards + strategies ── */
+function buildAboutSlmContent() {
+  let html = `
+    <div class="subsection-label">Définitions</div>
     <div class="def-row">
       <div class="def-card">
         <div class="def-card-label">
@@ -214,33 +426,125 @@ function renderOverview() {
         <div class="def-card-text">Protection des données, latence ultra-faible, réduction des coûts cloud et disponibilité immédiate sans connectivité.</div>
       </div>
     </div>
-
-    <div class="img-grid">${imgSlots}</div>
-
-    <div class="ctx-section">
-      <p>Les performances des LLM suivent une <strong>loi de puissance</strong> par rapport au nombre de paramètres (Kaplan et al., 2020 ; Hoffmann et al., 2023). Des modèles comme Phi-4-mini (3,8 B), Qwen3 (0,5–7 B) ou Gemma 3 (1–12 B) atteignent des performances comparables aux grands modèles sur des tâches ciblées.</p>
-      <p>Le défi central est le <strong>Memory Wall</strong> : un modèle 7 B en FP16 requiert ~14 GB de VRAM, dépassant la capacité de la plupart des smartphones. Les stratégies d'optimisation — quantisation INT4/INT8, élagage, distillation — permettent de franchir cette barrière.</p>
-    </div>
-
-    <div class="section-label">Explorer la taxonomie</div>
-    <div class="cat-cards">
+<div class="subsection-label">Comprendre les SLM et le Edge AI</div>
+    <div class="content-cards">
   `;
-
-  for (const [cat, subs] of Object.entries(TAXONOMY)) {
-    const m     = catStyle(cat);
-    const total = Object.values(subs).reduce((a, b) => a + b, 0);
-    html += `
-      <div class="cat-card ${m.cls}" data-action="cat" data-cat="${h(cat)}">
-        <div class="card-number">${total}</div>
-        <div class="card-title">${h(cat)}</div>
-        <div class="card-subs">
-    `;
-    for (const [sub, cnt] of Object.entries(subs)) {
-      html += `<div class="card-sub-row"><span>${h(sub)}</span><span>${cnt}</span></div>`;
+  const STRATEGIES_BLOCK = `
+  <div class="strategies-block">
+    <div class="subsection-label">Stratégies d'optimisation</div>
+    <ul class="overview-bullets" style="margin-bottom:0.8em">
+      <li>
+        <b>Data-level</b> : filtrer et agréger les données, quantiser et utiliser des frameworks adaptés.
+      </li>
+      <li>
+        <b>Model-level</b> : pruning, quantisation et distillation pour réduire la taille et accélérer l’inférence.
+      </li>
+      <li>
+        <b>System-level</b> : optimiser runtime, parallélisation et déploiement pour exploiter le hardware.
+      </li>
+    </ul>
+  </div>
+  `;
+  CONTENT_CARDS.forEach(card => {
+    let imgBlock = '';
+    if (card.images && card.images.length) {
+      imgBlock = card.images.map(img => `
+        <div class="content-card-img-slot">
+          <div class="content-card-img-inner">
+            <img src="${h(img.src)}" alt="${h(img.caption)}" loading="lazy"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="img-placeholder" style="display:none">
+              <div class="ph-icon">🖼</div>
+              <div class="ph-caption">${h(img.caption)}</div>
+            </div>
+          </div>
+          <div class="content-card-img-caption">${h(img.caption)}</div>
+        </div>
+      `).join('');
+      imgBlock = `<div class="content-card-imgs content-card-imgs--multi">${imgBlock}</div>`;
     }
-    html += `</div><div class="card-cta">→ Explorer</div></div>`;
-  }
+    let cardClass = '';
+    if (card.images && card.images.length > 1) cardClass = ' content-card--multi-img';
+    else if (!card.images || !card.images.length) cardClass = ' content-card--no-img';
+    const sourcesBlock = (card.sources && card.sources.length)
+      ? `<div class="content-card-sources"><span class="content-card-sources-label">Sources :</span> ${card.sources.map(s => `<a href="${h(s.url)}" target="_blank" rel="noopener" class="content-card-source-link">${h(s.label)}</a>`).join(' · ')}</div>`
+      : '';
+    html += `
+      <div class="content-card${cardClass}">
+        <div class="content-card-text">
+          <h3 class="content-card-title">${h(card.title)}</h3>
+          <p>${card.text}</p>
+          ${sourcesBlock}
+        </div>
+        ${imgBlock}
+      </div>`;
+    if (card.title === "Le Memory Wall et Puissance de calcul") {
+      html += STRATEGIES_BLOCK;
+    }
+  });
   html += `</div>`;
+  return html;
+}
+
+function renderAboutSlm() {
+  const content = buildAboutSlmContent();
+  const html = `
+    <div class="view-header">
+      <div class="view-breadcrumb">
+        <span class="bc-link" data-action="overview">Vue d'ensemble</span>
+        <span class="bc-sep">/</span>
+        <span>A propos des SLMs et du Edge AI</span>
+      </div>
+      <div class="view-title" style="color:var(--c-about1)">A propos des SLMs et du Edge AI</div>
+      <div class="view-meta">Définitions, contenu pédagogique et stratégies d'optimisation</div>
+    </div>
+    ${content}
+  `;
+  document.getElementById('content-area').innerHTML = html;
+}
+
+/* ── About Work page ── */
+const ABOUT_WORK = {
+  repoUrl: 'https://github.com/thomas0barand/slm_survey',
+  email: 'th.barand@gmail.com',
+  author: 'Thomas Barand',
+  workTime: '~20 h',
+};
+
+function renderAboutWork() {
+  const dateStr = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const html = `
+    <div class="view-header">
+      <div class="view-breadcrumb">
+        <span class="bc-link" data-action="overview">Vue d'ensemble</span>
+        <span class="bc-sep">/</span>
+        <span>A propos de ce travail</span>
+      </div>
+      <div class="view-title" style="color:var(--c-about2)">A propos de ce travail</div>
+      <div class="view-meta">Présentation du projet et méthodologie</div>
+    </div>
+    <div class="about-work-page">
+      <p class="about-work-lead">
+        Ce projet de veille technologique (MOS 4.4) vise à suivre les avancées sur les <b>Small Language Models (SLM)</b> et le <b>Edge AI</b>.
+        Les articles sont collectés, analysés et classés selon une taxonomie (catégories / sous-catégories).
+        Une interface permet d'explorer les articles par thème et de consulter les synthèses pédagogiques sur les SLM et le Edge AI.
+        Tout le travail est reproductible et peut être mis à jour via les scripts de scrapings / traitement des données dans le dépôt github.
+      </p>
+      <div class="subsection-label">Organigramme du travail</div>
+      <div class="about-organigram-wrap">
+        <img src="images/organigramme.png" alt="Organigramme du travail" class="about-organigram-img" loading="lazy">
+      </div>
+      <div class="about-work-footer">
+        <div class="about-work-meta">
+          <div><strong>${h(ABOUT_WORK.author)}</strong></div>
+          <div>Temps de travail : ${ABOUT_WORK.workTime}</div>
+          <div>Date : ${dateStr}</div>
+          <div><a href="mailto:${h(ABOUT_WORK.email)}" class="about-work-link">${h(ABOUT_WORK.email)}</a></div>
+          <div><a href="${h(ABOUT_WORK.repoUrl)}" target="_blank" rel="noopener" class="about-work-link">Dépôt GitHub</a></div>
+        </div>
+      </div>
+    </div>
+  `;
   document.getElementById('content-area').innerHTML = html;
 }
 
