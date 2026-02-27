@@ -525,11 +525,34 @@ function renderAboutWork() {
     </div>
     <div class="about-work-page">
       <p class="about-work-lead">
-        Ce projet de veille technologique (MOS 4.4) vise à suivre les avancées sur les <b>Small Language Models (SLM)</b> et le <b>Edge AI</b>.
-        Les articles sont collectés, analysés et classés selon une taxonomie (catégories / sous-catégories).
-        Une interface permet d'explorer les articles par thème et de consulter les synthèses pédagogiques sur les SLM et le Edge AI.
-        Tout le travail est reproductible et peut être mis à jour via les scripts de scrapings / traitement des données dans le dépôt github.
+        Ce projet de veille technologique (MOS 4.4) vise à suivre les avancées sur les <b>Small Language Models (SLM)</b> et le <b>Edge AI</b> :
+        articles et publications sont collectés depuis plusieurs sources, enrichis par une classification automatique selon une taxonomie (sujets et sous-sujets) et par la génération de résumés,
+        puis explorables via ce site. Les détails techniques (scripts, commandes, structure du dépôt) sont dans le README du projet.
       </p>
+
+      <div class="subsection-label">Objectifs</div>
+      <p class="about-work-p">
+        Monitorer l’état de l’art (papers et signaux variés), structurer l’information selon une taxonomie précise (Topic / Subtopic),
+        et fournir une interface de consultation : ce site charge des données pré-calculées et permet de naviguer par thème sans backend.
+      </p>
+
+      <div class="subsection-label">Principe de fonctionnement</div>
+      <p class="about-work-p">
+        Le flux de traitement (illustré par l'organigramme ci-dessous) commence par la <b>collecte</b> : un module <b>Scraper</b> extrait les informations depuis différentes sources (<b>arXiv, Google Scholar, Medium et LinkedIn</b>) pour constituer une base de données d'articles bruts (<i>Raw articles</i>). Ces articles subissent ensuite un double processus d'enrichissement pour aboutir aux articles finaux (<i>Enriched articles</i>).
+      </p>
+
+      <p class="about-work-p">
+        <b>1. Classification et Embeddings :</b> La taxonomie est définie par une liste de thématiques (<i>Topic 1, Topic 2...</i>). Le contenu de chaque article brut ainsi que les descriptions des thématiques sont transformés en <b>vecteurs</b> grâce au modèle d'embedding <b><code>BAAI/bge-large-en-v1.5</code></b>. Pour classer un article, on compare son vecteur à ceux des thématiques via la <b>similarité cosinus</b>. Ce calcul génère un <b>score de pertinence</b> (<i>Pertinence score</i>) qui permet d'affecter l'article à la catégorie la plus proche sémantiquement.
+      </p>
+
+      <p class="about-work-p">
+        <b>2. Résumé automatique :</b> En parallèle, chaque article brut est traité par le modèle de langage <b>Phi3:mini</b> (de Microsoft). L'objectif de ce modèle est de générer une synthèse de l'article en une seule phrase (<b><i>One sentence summary</i></b>) afin de faciliter la lecture rapide sur l'interface.
+      </p>
+
+      <p class="about-work-p">
+        Tout ce travail d'enrichissement (calculs de similarité et génération de texte) est fait en amont ; le site ne fait que charger, filtrer et trier la base de données finale d'articles enrichis.
+      </p>
+
       <div class="subsection-label">Organigramme du travail</div>
       <div class="about-organigram-wrap">
         <img src="images/organigramme.png" alt="Organigramme du travail" class="about-organigram-img" loading="lazy">

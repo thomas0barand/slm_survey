@@ -701,6 +701,34 @@ main#main-panel { overflow-y: auto; background: var(--bg); }
   line-height: 1.7;
   margin-bottom: 28px;
 }
+.about-work-p {
+  font-size: 0.9rem;
+  color: var(--tx-mid);
+  line-height: 1.65;
+  margin-bottom: 16px;
+}
+.about-work-p code {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  background: var(--surface2);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.about-work-list {
+  font-size: 0.88rem;
+  color: var(--tx-mid);
+  line-height: 1.6;
+  margin: 0 0 20px 1.2rem;
+  padding-left: 0.5rem;
+}
+.about-work-list li { margin-bottom: 10px; }
+.about-work-list code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  background: var(--surface2);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
 .about-work-footer { margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--line); }
 .about-work-meta {
   font-size: 0.85rem;
