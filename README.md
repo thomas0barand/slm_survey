@@ -13,6 +13,8 @@ Projet de veille technologique (MOS 4.4) sur les **Small Language Models (SLM)**
 | **Process** | Pipeline données brutes → enrichissement (catégories, résumés) → export pour le site. |
 | **Website** | Site statique (HTML/CSS/JS) pour explorer la taxonomie et les articles, avec pages « À propos ». |
 
+Le site est disponible en suivant le lien : https://thomas0barand.github.io/slm_survey/
+
 ![Vue d’ensemble du site — page principale](images/websitemainpage.png)
 
 ---
